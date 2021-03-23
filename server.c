@@ -1,5 +1,6 @@
 #include "server.h"
 
+
 char* RemoveParity(int num_of_extra, int ltot, char* bits_array, int* e_count, int* fix_count) {
 	char static rem[15] = { 0 };
 	int ss, sss, error = 0, pos_of_orisig = 0, pos_of_redsig = 0;
@@ -80,10 +81,10 @@ char* StringToBinary(char* s) {
 		char ch = s[i];
 		for (int j = 7; j >= 0; --j) {
 			if (ch & (1 << j)) {
-				strcat_s(binary, 2, "1");
+				strcat_s(binary, strlen(binary), "1");
 			}
 			else {
-				strcat_s(binary, 2, "0");
+				strcat_s(binary, strlen(binary), "0");
 			}
 		}
 	}
@@ -101,14 +102,14 @@ char* BinaryToString(char* b) {
 		return NULL;
 	}
 	str[0] = '\0';
-	for (size_t i = 0; i < len; i+8) {
+	for (size_t i = 0; i < len; i+=8) {
 		char ch[2] = {0, '\0'};
 		int bit_position = 7;
-		for (int j = i; j < i+8; j++) {
+		for (size_t j = i; j < i+8; j++) {
 			if (b[j] == "1")
 				ch[0] += pow(2, bit_position);
 			bit_position--;
-			strcat_s(str, 2, ch);
+			strcat_s(str, strlen(str), ch);
 		}
 	}
 	return str;
@@ -127,7 +128,7 @@ char* DecodeBinary(char* b, int* e_count, int* fix_count) {
 	str[0] = '\0';
 	char bin_array[15] = { 0 };
 	int counter = 0;
-	for (size_t i = 0; i < len; i + 8) {
+	for (size_t i = 0; i < len; i += 8) {
 		bin_array[counter] = b[i];
 		counter++;
 		if (i % 15 == 0) {//we completed 15 iterations, send to decode and reset counter
@@ -204,7 +205,7 @@ int DeinitializeSocket(SOCKET* socket) {
 
 
 //wait for incoming data
-int RecvData(SOCKET* server_socket, char* file_name, int port_num) {
+int RecvData(SOCKET server_socket, char* file_name, int port_num) {
 	FILE* output_file = NULL;
 	fd_set readfds;
 	char recv_buffer[BUFF_SIZE];
@@ -213,29 +214,33 @@ int RecvData(SOCKET* server_socket, char* file_name, int port_num) {
 	int byte_counter = 0, write_counter = 0, error_counter = 0, fixed_counter = 0;
 	SOCKADDR_IN client_addr;
 	int client_struct_length = sizeof(client_addr);
-	if (fopen_s(output_file, file_name, "wb") != 0) {
+	if (fopen_s(&output_file, file_name, "w") != 0) {
 		printf("Error- can't open file");
 		return STATUS_CODE_FAILURE;
 	}
 	while (TRUE) {
 		FD_ZERO(&readfds);
-		FD_SET(STDIN, &readfds);
+		FD_SET(_fileno(stdin), &readfds);
 		FD_SET(port_num, &readfds);
 		select(port_num + 1, &readfds, NULL, NULL, NULL);
-		if (FD_ISSET(STDIN, &readfds)) {
+		if (FD_ISSET(_fileno(stdin), &readfds)) {
 			char input[4];
 			scanf_s("%s", input, 4);
 			if (input[3] == '\0') {// since the input is string this is always true, but just in case
 				if (strcmp(input, "End") == 0) {//End recived from user, clean up and return
-					SendMessageToChannel();//TODO
+					// make an array with the needed parameters and send it back
+					int send_array[4] = { byte_counter, write_counter, error_counter, fixed_counter };
+					sendto(server_socket, send_array, sizeof(send_array), 0, (struct sockaddr*)&client_addr, client_struct_length);
 					printf("received: %d bytes\n", byte_counter);
-					printf("wrote: %d bytes\n", byte_counter);
+					printf("wrote: %d bytes\n", write_counter);
 					printf("detected %d errors\n", error_counter);
 					printf("corrected %d errors\n", fixed_counter);
-					DeinitializeSocket(server_socket);
-					fclose(output_file);
 					free(binary_array);
 					free(output_data);
+					if (fclose(output_file) == 0) {
+						printf("Error - can't close file\n");
+						return STATUS_CODE_FAILURE;
+					}
 					return STATUS_CODE_SUCCESS;
 				}
 			}
@@ -249,7 +254,10 @@ int RecvData(SOCKET* server_socket, char* file_name, int port_num) {
 			binary_array = StringToBinary(recv_buffer);//convert the buffer to binary array
 			binary_array = DecodeBinary(binary_array, &error_counter, &fixed_counter);//fix errors and remove parity
 			output_data = BinaryToString(binary_array);// convert back to bytes
-			fwrite(output_data, 1, sizeof(output_data), output_file);// write to file
+			if (fwrite(output_data, 1, sizeof(output_data), output_file) == 0) {// write to file
+				printf("Error writing to file\n");
+				return STATUS_CODE_FAILURE;
+			}
 		}
 	}
 

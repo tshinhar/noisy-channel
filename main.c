@@ -13,10 +13,11 @@ int main(int argc, char* argv[])
 	if (InitServerSocket(&server_socket, atoi(argv[1])) == STATUS_CODE_FAILURE) {
 		return STATUS_CODE_FAILURE;
 	}
-	printf("Type “End” when done\n");
+	printf("Type \"End\" when done\n");
 	if (RecvData(server_socket, argv[2], atoi(argv[1])) == STATUS_CODE_FAILURE) {
 		return STATUS_CODE_FAILURE;
 	}
+	DeinitializeSocket(server_socket);
 
 	return STATUS_CODE_SUCCESS;
 }

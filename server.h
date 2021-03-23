@@ -27,7 +27,7 @@
 DWORD WaitForConnection(LPVOID lpParam);
 int InitServerSocket(SOCKET* server_socket, int port_num);
 int DeinitializeSocket(SOCKET* socket);
-int RecvData(SOCKET* server_socket, char* file_name, int port_num);
+int RecvData(SOCKET server_socket, char* file_name, int port_num);
 
 #endif // SERVER_H
 #pragma once
